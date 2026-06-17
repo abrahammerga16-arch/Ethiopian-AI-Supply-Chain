@@ -1,0 +1,75 @@
+"""pages/admin_panel.py"""
+import streamlit as st
+from utils.db import get_all_users, get_products
+
+
+def show_users():
+    st.markdown("## 👥 User Management")
+    users = get_all_users()
+
+    # Role breakdown
+    from collections import Counter
+    counts = Counter(u["role"] for u in users)
+    cols = st.columns(4)
+    for col, role in zip(cols, ["Producer", "Merchant", "Customer", "Admin"]):
+        col.metric(role + "s", counts.get(role, 0))
+
+    st.divider()
+    st.markdown(f"### All Users ({len(users)})")
+
+    search = st.text_input("Search users", placeholder="Name or email…")
+    if search:
+        users = [u for u in users if search.lower() in u["name"].lower() or search.lower() in u["email"].lower()]
+
+    for u in users:
+        verified = "✅" if u["is_verified"] else "⬜"
+        badge_class = f"badge-{u['role'].lower()}"
+        st.markdown(f"""
+        <div class="product-card">
+          {verified} <strong>{u['name']}</strong>
+          <span class="{badge_class}" style="margin-left:8px">{u['role']}</span>
+          <span style="float:right;color:#999;font-size:.8rem">{u['created_at'][:10]}</span><br>
+          <span style="color:#666;font-size:.85rem">📧 {u['email']} &nbsp;·&nbsp; 📍 {u['region'] or '—'}</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+def show_all_products():
+    st.markdown("## 📊 All Products")
+    products = get_products()
+
+    from collections import Counter
+    sector_counts = Counter(p["sector"] for p in products)
+    region_counts = Counter(p["region"] for p in products)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("**By Sector**")
+        for sector, count in sector_counts.most_common():
+            pct = count / len(products) if products else 0
+            st.progress(pct, text=f"{sector}: {count}")
+
+    with c2:
+        st.markdown("**By Region**")
+        for region, count in region_counts.most_common():
+            pct = count / len(products) if products else 0
+            st.progress(pct, text=f"{region}: {count}")
+
+    st.divider()
+    search = st.text_input("Search products")
+    filtered = [p for p in products if not search or search.lower() in p["title"].lower()] if search else products
+
+    for p in filtered[:30]:
+        st.markdown(f"""
+        <div class="product-card">
+          <strong>{p['title']}</strong>
+          <span style="float:right;color:#009688;font-weight:700">{p['price']} ETB/{p['unit']}</span><br>
+          <span style="color:#666;font-size:.85rem">
+            🏷️ {p['sector']} &nbsp;·&nbsp; 📍 {p['region']} &nbsp;·&nbsp;
+            ⭐ Grade {p['quality']} &nbsp;·&nbsp; 👤 {p['seller_name']}
+          </span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    if len(filtered) > 30:
+        st.caption(f"Showing 30 of {len(filtered)} results.")
